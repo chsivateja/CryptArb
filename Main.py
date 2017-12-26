@@ -33,19 +33,23 @@ binance_withdrawal_fee = {
 }
 
 def fill_currency_rate():
-    payload = {'base':'INR','symbols':'USD,EUR,GBP'}
-    resp_curr = requests.get('https://api.fixer.io/latest',params=payload)
+    payload = {'q':'USD_INR,GBP_INR'}
+    resp_curr = requests.get('https://free.currencyconverterapi.com/api/v5/convert',params=payload)
     dict = resp_curr.json()
-    currency_rates['USD'] = dict['rates']['USD']
-    currency_rates['EUR'] = dict['rates']['EUR']
-    currency_rates['GBP'] = dict['rates']['GBP']
+    currency_rates['USD'] = dict['results']['USD_INR']['val']
+    currency_rates['GBP'] = dict['results']['GBP_INR']['val']
+
+    payload = {'q':'EUR_INR'}
+    resp_curr = requests.get('https://free.currencyconverterapi.com/api/v5/convert', params=payload)
+    dict = resp_curr.json()
+    currency_rates['EUR'] = dict['results']['EUR_INR']['val']
     print(currency_rates)
 
 def straight_trade(cex_crypto,cex_price,cex_curr,koinex_price):
-    investment = 100000
-    fiat_amt = investment * currency_rates[cex_curr]
-    fee = 0.035 + 0.042 + 0.002 # cex deposit commission + bank fee + cex trade fee
-    total_investment = investment*(1+fee)
+    investment = 100000 # cex deposit commission
+    fiat_amt = (investment / float(currency_rates[cex_curr])) * 0.998
+    fee = 0.042  # bank fee
+    total_investment = (investment) * 1.035 * (1+fee)
     profit = ((fiat_amt/float(cex_price)) - float(cex_withdrawal_fee[cex_crypto])) * float(koinex_price) - total_investment
     if profit > 0:
         positive_trade_list.append(cex_crypto + ' in ' + cex_curr + ': ' + str(int(profit)))
@@ -67,19 +71,19 @@ def rounded_trade(source_cryp,cex_ltp_dict,koinex_ltp_dict,round_dest_crypto_lis
 
 def zed_trade(source_cryp,binance_ltp_dict,koinex_ltp_dict,dest_cryp):
     investment = 100000
-    source_cryp_qty = (investment/float(koinex_ltp_dict[source_cryp])) - float(koinex_withdrawal_fee[source_cryp])
+    source_cryp_qty = ((investment)/float(koinex_ltp_dict[source_cryp])) - float(koinex_withdrawal_fee[source_cryp])
     for curr in ['BTC','ETH']:
         if (source_cryp == curr):
             continue
         curr_amt = source_cryp_qty * float(binance_ltp_dict[source_cryp + ':' + curr]) * 0.999
         if (dest_cryp == curr):
-            profit_direct_no_third = curr_amt * float(koinex_ltp_dict[curr]) - investment
+            profit_direct_no_third = ((curr_amt-float(binance_withdrawal_fee[curr])) * float(koinex_ltp_dict[curr])) - (investment*1.0025)
             if profit_direct_no_third > 0:
                 positive_trade_list.append(source_cryp + '->' + curr + ': ' + str(int(profit_direct_no_third)) + ' #')
             print(source_cryp + '->' + curr + ': ' + str(profit_direct_no_third) + ' #')
             continue
-        dest_cryp_qty = (curr_amt/float(binance_ltp_dict[dest_cryp + ':' + curr])) - float(binance_withdrawal_fee[dest_cryp])
-        profit = dest_cryp_qty*float(koinex_ltp_dict[dest_cryp]) - investment
+        dest_cryp_qty = (curr_amt/float(binance_ltp_dict[dest_cryp + ':' + curr]))*0.999 - float(binance_withdrawal_fee[dest_cryp])
+        profit = dest_cryp_qty*float(koinex_ltp_dict[dest_cryp]) - (investment*1.0025)
         if profit > 0:
             positive_trade_list.append(source_cryp + '->' + curr + '->' + dest_cryp + ': ' + str(int(profit)))
         print(source_cryp + '->' + curr + '->' + dest_cryp + ': ' + str(profit))
@@ -120,6 +124,7 @@ def main():
                 h['symbol'] = h['symbol'].replace('BCC','BCH')
             binance_ltp_dict[h['symbol'][:3] + ':' + h['symbol'][-3:]] = h['price']
             binance_ltp_dict[h['symbol'][-3:] + ':' + h['symbol'][:3]] = str(1/float(h['price']))
+    print(binance_ltp_dict)
     #CODE FOR STRAIGHT TRADE
     positive_trade_list.append('Straight Trades : Buy crypto on CEX with fiat, send and sell on Koinex \n')
     straight_crypto_list = ['ETH','BTC','BCH']
