@@ -11,7 +11,7 @@ TO DO
 
 currency_rates = {}
 positive_trade_list = []
-email_subscriber_list = ["yadipadlakha@gmail.com", "deek.n8@gmail.com", "jksk.mutyala@gmail.com", "nagakiranbj@gmail.com"]
+email_subscriber_list = ["yadipadlakha@gmail.com","deek.n8@gmail.com", "jksk.mutyala@gmail.com", "nagakiranbj@gmail.com"]
 cex_withdrawal_fee = {
     'BTC' : '0.001',
     'BCH' : '0.001',
@@ -113,15 +113,24 @@ def main():
     print("hello")
     fill_currency_rate()
     positive_trade_list.append('All profits are on investment on INR 100000 \n')
+
     resp_koinex = requests.get('https://koinex.in/api/ticker')
     koinex_json_dict = resp_koinex.json()
     koinex_ltp_dict = koinex_json_dict['prices']
+
+    resp_bitbns = requests.get('https://bitbns.com/order/getTickerAll')
+    bitbns_json_dict = resp_bitbns.json()
+    bitbns_ltp_dict = {}
+    for item in bitbns_json_dict:
+        for key,value in item.items():
+            bitbns_ltp_dict[key] = value['lastTradePrice']
 
     resp_cex = requests.get('https://cex.io/api/tickers/USD/EUR/GBP/ETH')
     cex_json_dict = resp_cex.json()
     cex_ltp_dict = {}
     for k in ( m for m in cex_json_dict['data'] if any(curr in m['pair'] for curr in ['BTC','BCH','ETH','XRP'])):
         cex_ltp_dict[k['pair']] = k['last']
+
     payload = {'symbol': 'ETHBTC'}  # payload construction for certain data-heavy 'get' operations
     resp_binance = requests.get('https://api.binance.com/api/v3/ticker/price')
     binance_json_dict = resp_binance.json()
@@ -132,7 +141,7 @@ def main():
                 h['symbol'] = h['symbol'].replace('BCC','BCH')
             binance_ltp_dict[h['symbol'][:3] + ':' + h['symbol'][-3:]] = h['price']
             binance_ltp_dict[h['symbol'][-3:] + ':' + h['symbol'][:3]] = str(1/float(h['price']))
-    #CODE FOR STRAIGHT TRADE
+    #CODE FOR STRAIGHT TRADE ON KOINEX
     positive_trade_list.append('Straight Trades : Buy crypto on CEX with fiat, send and sell on Koinex \n')
     straight_crypto_list = ['ETH','BTC','BCH','XRP']
     straight_currency_list = ['USD','EUR','GBP']
@@ -141,6 +150,15 @@ def main():
             if cryp == 'XRP' and curr == 'GBP':
                 continue
             straight_trade(cryp,cex_ltp_dict[cryp + ':' + curr],curr,koinex_ltp_dict[cryp])
+    #CODE FOR STRAIGHT TRADE ON BITBNS
+    positive_trade_list.append('\nStraight Trades : Buy crypto on CEX with fiat, send and sell on BITBNS \n')
+    straight_crypto_list = ['BTC', 'XRP']
+    straight_currency_list = ['USD', 'EUR', 'GBP']
+    for cryp in straight_crypto_list:
+        for curr in straight_currency_list:
+            if cryp == 'XRP' and curr == 'GBP':
+                continue
+            straight_trade(cryp, cex_ltp_dict[cryp + ':' + curr], curr, bitbns_ltp_dict[cryp])
     #CODE FOR U TRADE
     positive_trade_list.append('\nU Trade(round) : Buy crypto1 on koinex, send to CEX, sell and buy crpto2, send crypto2 to koinex n dump\n')
     round_source_crypto_list = ['ETH','BTC','BCH','XRP']
@@ -159,6 +177,6 @@ def main():
     positive_trade_list.clear()
 
 if __name__ == "__main__":
-    # while True:
-    main()
-        # time.sleep(600)
+    while True:
+        main()
+        time.sleep(1200)
